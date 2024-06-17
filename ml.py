@@ -1,131 +1,92 @@
-import time
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import StaleElementReferenceException
-from docx import Document
-from docx.shared import Pt
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix, classification_report
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 
-# Set up Chrome options
-chrome_options = Options()
-chrome_options.add_argument("--headless")  # Run in headless mode
-chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
 
-# Set up the WebDriver
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-wait = WebDriverWait(driver, 10)  # Increase wait time if necessary
+# Load the dataset
+file_path = 'path_to_your_file/Titanic.csv'  # Replace with your actual file path
+titanic_data = pd.read_csv('Titanic.csv')
 
-# URL of the webpage to scrape
-url = 'https://books.toscrape.com/'
+# Handle missing values
+imputer = SimpleImputer(strategy='median')
+titanic_data['age'] = imputer.fit_transform(titanic_data[['age']])
 
-# Open the webpage
-driver.get(url)
+# Convert categorical variables to numerical
+label_encoders = {}
+for column in ['sex', 'embarked', 'class', 'who', 'alone']:
+    label_encoders[column] = LabelEncoder()
+    titanic_data[column] = label_encoders[column].fit_transform(titanic_data[column])
 
-# List to hold book data
-books_data = []
+# Split the data into training and testing sets
+X = titanic_data.drop('survived', axis=1)
+y = titanic_data['survived']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Function to scrape data from a page
-def scrape_page():
-    products = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'product_pod')))
+# Train a Random Forest classifier
+rf_model = RandomForestClassifier(random_state=42)
+rf_model.fit(X_train, y_train)
 
-    for product in products:
-        try:
-            # Get book URL to navigate into detail page
-            book_url = product.find_element(By.TAG_NAME, 'h3').find_element(By.TAG_NAME, 'a').get_attribute('href')
+# Make predictions on the test set
+y_pred = rf_model.predict(X_test)
 
-            # Get book title
-            title = product.find_element(By.TAG_NAME, 'h3').find_element(By.TAG_NAME, 'a').get_attribute('title')
+# Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred)
+class_report = classification_report(y_test, y_pred)
 
-            # Navigate to the book detail page
-            driver.get(book_url)
+# Predict survival for all passengers
+titanic_data['predicted_survived'] = rf_model.predict(X)
 
-            # Get price
-            price = driver.find_element(By.CLASS_NAME, 'price_color').text
+# Filter passengers that are predicted to survive
+survived_passengers = titanic_data[titanic_data['predicted_survived'] == 1]
 
-            # Get stock status
-            stock_status = driver.find_element(By.CLASS_NAME, 'instock').text.strip()
+# Display the passengers predicted to survive
+print('Passengers predicted to survive:')
+print(survived_passengers)
 
-            # Get rating
-            rating = driver.find_element(By.CLASS_NAME, 'star-rating').get_attribute('class').split()[-1]
 
-            # Get description
-            description = driver.find_element(By.ID, 'product_description')
-            if description:
-                description = description.find_element(By.XPATH, 'following-sibling::p').text
-            else:
-                description = "No description available"
 
-            # Get category
-            category = driver.find_elements(By.CSS_SELECTOR, '.breadcrumb li a')[2].text
 
-            # Get product information
-            product_info_elements = driver.find_elements(By.CSS_SELECTOR, 'table.table.table-striped tr')
-            product_info = {}
-            for elem in product_info_elements:
-                key = elem.find_element(By.TAG_NAME, 'th').text
-                value = elem.find_element(By.TAG_NAME, 'td').text
-                product_info[key] = value
+#TASK 2
 
-            # Append the data to the list
-            books_data.append({
-                'title': title,
-                'price': price,
-                'stock_status': stock_status,
-                'rating': rating,
-                'description': description,
-                'category': category,
-                'product_info': product_info
-            })
+# Load the dataset
+file_path = 'path_to_your_file/spam_ham_dataset.csv'  # Replace with your actual file path
+email_data = pd.read_csv('spam_ham_dataset.csv')
 
-            # Go back to the product list page
-            driver.back()
+# Check for missing values
+print(email_data.isnull().sum())
 
-        except StaleElementReferenceException:
-            print("StaleElementReferenceException occurred. Retrying...")
-            continue
+# Split the data into features (X) and labels (y)
+X = email_data['text']
+y = email_data['label']
 
-# Loop through the first 5 pages
-for page_num in range(1, 6):
-    print(f"Scraping page {page_num}...")
-    scrape_page()
+# Convert text to TF-IDF features
+tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_df=0.7)
+X_tfidf = tfidf_vectorizer.fit_transform(X)
 
-    # Move to the next page if it exists
-    try:
-        next_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, 'next')))
-        next_button.click()
-    except:
-        break  # Break the loop if there's no next button or if the exception persists
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_tfidf, y, test_size=0.2, random_state=42)
 
-# Close the browser
-driver.quit()
+# Train a Logistic Regression classifier
+model = LogisticRegression()
+model.fit(X_train, y_train)
 
-# Create a Word document
-doc = Document()
+# Make predictions on the test set
+y_pred = model.predict(X_test)
 
-# Add a title to the document
-doc.add_heading('Books Data', level=1)
+# Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred, pos_label='spam')
+recall = recall_score(y_test, y_pred, pos_label='spam')
+conf_matrix = confusion_matrix(y_test, y_pred)
+class_report = classification_report(y_test, y_pred)
 
-# Add book data to the document
-for book in books_data:
-    doc.add_heading(book['title'], level=2)
-    doc.add_paragraph(f"Price: {book['price']}")
-    doc.add_paragraph(f"Stock Status: {book['stock_status']}")
-    doc.add_paragraph(f"Rating: {book['rating']}")
-    doc.add_paragraph(f"Description: {book['description']}")
-    doc.add_paragraph(f"Category: {book['category']}")
-    
-    # Add product information
-    doc.add_heading('Product Information', level=3)
-    for key, value in book['product_info'].items():
-        doc.add_paragraph(f"{key}: {value}")
-
-    doc.add_paragraph("\n")
-
-# Save the document
-doc.save('books_data.docx')
-
-print("Data has been written to books_data.docx")
+print('Classification Report:')
+print(class_report)
