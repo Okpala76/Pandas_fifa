@@ -12,9 +12,11 @@ from sklearn.linear_model import LogisticRegression
 file_path = 'path_to_your_file/Titanic.csv'  # Replace with your actual file path
 titanic_data = pd.read_csv('Titanic.csv')
 
+
 # Handle missing values
 imputer = SimpleImputer(strategy='median')
 titanic_data['age'] = imputer.fit_transform(titanic_data[['age']])
+
 
 # Convert categorical variables to numerical
 label_encoders = {}
@@ -22,10 +24,12 @@ for column in ['sex', 'embarked', 'class', 'who', 'alone']:
     label_encoders[column] = LabelEncoder()
     titanic_data[column] = label_encoders[column].fit_transform(titanic_data[column])
 
+
 # Split the data into training and testing sets
 X = titanic_data.drop('survived', axis=1)
 y = titanic_data['survived']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
 
 # Train a Random Forest classifier
 rf_model = RandomForestClassifier(random_state=42)
